@@ -11,7 +11,9 @@ from numpy.lib.recfunctions import unstructured_to_structured
 from cv_bridge import CvBridge
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
-from geometry_msgs.msg import PoseArray, Pose, Quaternion
+from geometry_msgs.msg import PoseArray, Pose, Quaternion, PointStamped
+import tf2_ros
+import tf2_geometry_msgs
 
 from object_detection_msgs.msg import (
     PointCloudArray,
@@ -75,6 +77,10 @@ class ObjectDetectionNode(Node):
         # ---------- Setup publishers ----------
         self.object_pose_pub = self.create_publisher(
             PoseArray, self.get_parameter("object_detection_pose_topic").value, 10
+        )
+
+        self.object_pose_pub_single = self.create_publisher(
+            PointStamped, "/goal_point", 10
         )
 
         self.object_detection_img_pub = self.create_publisher(
@@ -392,7 +398,15 @@ class ObjectDetectionNode(Node):
                     except Exception as e:
                         self.get_logger().warn(f"Could not draw circle: {str(e)}")
             # Publish results
+
+            points_stamped = PointStamped(header=header)
+
+            points_stamped.header.frame_id = "map"
+
+            points_stamped.point = object_pose_array.poses[0].position
+
             self.object_pose_pub.publish(object_pose_array)
+            self.object_pose_pub_single.publish(points_stamped)
             self.detection_info_pub.publish(object_info_array)
             self.object_point_clouds_pub.publish(point_cloud_array)
             self.object_detection_img_pub.publish(
