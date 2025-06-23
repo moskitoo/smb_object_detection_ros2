@@ -16,7 +16,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from rclpy.time import Time
 from builtin_interfaces.msg import Duration
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 
 from object_detection_msgs.msg import (
     PointCloudArray,
@@ -74,13 +74,22 @@ class ObjectDetectionNode(Node):
                 ("object_specific_file", "object_specific.yaml"),
                 ("min_cluster_size", 5),
                 ("cluster_selection_epsilon", 0.08),
+                ("target_classes", ["chair", "person"]),  # Add target classes parameter
+                ("duplicate_distance_threshold", 1.0),
             ],
         )
 
         self.tf_buf = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf, self)
 
-        self.marker_pub = self.create_publisher(Marker, "/detected_marker", 10)
+        self.marker_pub = self.create_publisher(MarkerArray, "/detected_marker", 10)
+
+        self.previous_markers = {}
+
+        self.class_colors = {
+            "chair": {"r": 1.0, "g": 0.0, "b": 0.0},
+            "person": {"r": 0.0, "g": 1.0, "b": 0.0},
+        }
 
         # ---------- Setup publishers ----------
         self.object_pose_pub = self.create_publisher(
@@ -200,6 +209,35 @@ class ObjectDetectionNode(Node):
             10,
         )
 
+    def is_duplicate_marker(self, position, class_name, threshold):
+        """Check if a marker is too close to existing markers of the same class"""
+        if class_name not in self.previous_markers:
+            return False
+        
+        new_pos = np.array([position.x, position.y, position.z])
+        
+        for prev_pos in self.previous_markers[class_name]:
+            prev_pos_array = np.array([prev_pos.x, prev_pos.y, prev_pos.z])
+            distance = np.linalg.norm(new_pos - prev_pos_array)
+            if distance < threshold:
+                return True
+        return False
+
+    def add_marker_position(self, position, class_name):
+        """Add a new marker position to the tracking dictionary"""
+        if class_name not in self.previous_markers:
+            self.previous_markers[class_name] = []
+        self.previous_markers[class_name].append(position)
+
+    def get_class_color(self, class_name):
+        """Get color for a specific class"""
+        if class_name in self.class_colors:
+            return self.class_colors[class_name]
+        else:
+            # Default color if class not found
+            return {"r": 0.5, "g": 0.5, "b": 0.5}
+  
+
     def image_info_callback(self, msg):
         """Handle camera info message"""
         h = msg.height
@@ -306,8 +344,24 @@ class ObjectDetectionNode(Node):
             object_info_array = ObjectDetectionInfoArray(header=header)
             point_cloud_array = PointCloudArray(header=header)
 
+            # Get target classes and duplicate threshold
+            target_classes = self.get_parameter("target_classes").value
+            duplicate_threshold = self.get_parameter("duplicate_distance_threshold").value
+
+            # MarkerArray for all detected objects
+            marker_array = MarkerArray()
+            marker_id = 0
+
             # Populate messages
             for i, obj in enumerate(object_list):
+                # Get object class name
+                class_name = object_detection_result["name"][i]
+                
+                # Check if this class is in our target classes
+                if class_name not in target_classes:
+                    self.get_logger().debug(f"Skipping object of class '{class_name}' - not in target classes")
+                    continue
+
                 # Create pose
                 object_pose = Pose()
                 object_pose.position.x = float(obj.pos[0])
@@ -318,11 +372,8 @@ class ObjectDetectionNode(Node):
 
                 # Create detection info
                 object_information = ObjectDetectionInfo()
-                object_information.class_id = str(
-                    object_detection_result["name"][i]
-                )  # Ensure string
-                object_information.id = int(obj.id)  # Ensure integer
-
+                object_information.class_id = str(class_name)
+                object_information.id = int(obj.id)
                 object_information.position.x = float(obj.pos[0])
                 object_information.position.y = float(obj.pos[1])
                 object_information.position.z = float(obj.pos[2])
@@ -343,19 +394,76 @@ class ObjectDetectionNode(Node):
                     object_detection_result["ymax"][i]
                 )
                 object_info_array.info.append(object_information)
+
                 # Create point cloud
                 object_point_cloud = pointcloud_in_fov[obj.pt_indices]
-                # Debug logging to understand the shape
-                self.get_logger().info(
-                    f"Original object_point_cloud shape: {object_point_cloud.shape}"
-                )
-                # Convert to PointCloud2 message (utils)
                 point_cloud_msg = array_to_pointcloud2(
                     object_point_cloud,
                     frame_id=self.optical_frame_id,
                     stamp=image_msg.header.stamp,
                 )
                 point_cloud_array.point_clouds.append(point_cloud_msg)
+
+                # Transform pose to map frame and create marker
+                try:
+                    point_stamped = PointStamped()
+                    point_stamped.header.frame_id = "rgb_camera_link"
+                    point_stamped.header.stamp = image_msg.header.stamp
+                    
+                    # Apply coordinate transformation
+                    x = object_pose.position.x
+                    y = object_pose.position.y
+                    z = object_pose.position.z
+                    
+                    point_stamped.point.x = z
+                    point_stamped.point.y = y
+                    point_stamped.point.z = -x
+
+                    # Transform to map frame
+                    self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
+                    point_in_map = self.tf_buf.transform(point_stamped, "map")
+
+                    # Check for duplicates
+                    if not self.is_duplicate_marker(point_in_map.point, class_name, duplicate_threshold):
+                        # Create marker
+                        marker = Marker()
+                        marker.header.frame_id = "map"
+                        marker.header.stamp = image_msg.header.stamp
+                        marker.ns = f"detected_{class_name}"
+                        marker.id = marker_id
+                        marker.type = Marker.SPHERE
+                        marker.action = Marker.ADD
+                        marker.pose.position = point_in_map.point
+                        marker.pose.orientation.x = 0.0
+                        marker.pose.orientation.y = 0.0
+                        marker.pose.orientation.z = 0.0
+                        marker.pose.orientation.w = 1.0
+                        marker.scale.x = 0.5
+                        marker.scale.y = 0.5
+                        marker.scale.z = 0.5
+                        marker.color.a = 1.0  # Fully opaque
+                        
+                        # Set color based on class
+                        color = self.get_class_color(class_name)
+                        marker.color.r = color["r"]
+                        marker.color.g = color["g"]
+                        marker.color.b = color["b"]
+
+                        marker_array.markers.append(marker)
+                        marker_id += 1
+
+                        # Add to tracking
+                        self.add_marker_position(point_in_map.point, class_name)
+                        
+                        self.get_logger().info(f"Added new {class_name} marker at position: "
+                                             f"x={point_in_map.point.x:.2f}, "
+                                             f"y={point_in_map.point.y:.2f}, "
+                                             f"z={point_in_map.point.z:.2f}")
+                    else:
+                        self.get_logger().debug(f"Skipped duplicate {class_name} marker")
+
+                except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                    self.get_logger().warn(f"Transform failed for {class_name}: {e}")
 
                 # Visualize if enabled
                 if (
@@ -365,19 +473,15 @@ class ObjectDetectionNode(Node):
                     object_points = points_on_image[obj.pt_indices]
 
                     if len(object_points.shape) == 1:
-                        # Calculate number of points (total length must be even)
                         n_points = len(object_points) // 2
-                        # Reshape to (n_points, 2) array
                         object_points = object_points.reshape(n_points, 2)
                     elif object_points.shape[1] != 2:
-                        # If 2D but wrong shape, try to fix it
                         object_points = object_points.reshape(-1, 2)
 
                     for idx, pt in enumerate(object_points):
                         try:
                             dist = object_point_cloud[idx, 2]
                             color = depth_color(dist, min_d=0.5, max_d=20)
-                            # Make a copy of the image before drawing
                             object_detection_image = object_detection_image.copy()
 
                             cv2.circle(
@@ -405,93 +509,27 @@ class ObjectDetectionNode(Node):
                         )
                     except Exception as e:
                         self.get_logger().warn(f"Could not draw circle: {str(e)}")
+
             # Publish results
-
-            # points_stamped = PointStamped(header=header)
-
-            # # points_stamped.header.frame_id = "rgb_camera_link"
-            # # points_stamped.header.frame_id = "map"
-
-            # points_stamped.point = object_pose_array.poses[0].position
-
-            # tf_buf = tf2_ros.Buffer()
-            # tf_listener = tf2_ros.TransformListener(tf_buf)
-            # target_pt = tf_buf.Transform(points_stamped.point, "map")
-
-            # points_stamped.point = target_pt
-
-            # self.object_pose_pub.publish(object_pose_array)
-            # self.object_pose_pub_single.publish(points_stamped)
-            # self.object_pose_pub_single.publish(points_stamped)
-
-            point_stamped = PointStamped()
-            point_stamped.header = object_pose_array.header  # e.g., "rgb_camera_link"
-            point_stamped.point = object_pose_array.poses[0].position
-
-            point_stamped.header.frame_id = "rgb_camera_link"
-
-            x = point_stamped.point.x
-            y = point_stamped.point.y
-            z = point_stamped.point.z
-
-            point_stamped.point.x = z
-            point_stamped.point.y = y
-            point_stamped.point.z = -x
-
-            self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
-                
-            # Perform the transform
-            # point_in_map = self.tf_buf.transform(point_stamped, "map", rospy.Duration(1.0))
-            point_in_map = self.tf_buf.transform(point_stamped, "map")
-
-            self.get_logger().info(f"point: {point_in_map.point}")        
-
-            # Publish the transformed point
             self.object_pose_pub.publish(object_pose_array)
-            self.object_pose_pub_single.publish(point_in_map)
-            self.object_pose_pub_single.publish(point_in_map)
-
-            marker = Marker()
-            marker.header.frame_id = "map"
-            marker.header.stamp = image_msg.header.stamp
-            marker.ns = "detected_objects"
-            marker.id = 0
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.pose.position = point_in_map.point
-            marker.pose.orientation.x = 0.0
-            marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = 0.0
-            marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.5
-            marker.scale.y = 0.5
-            marker.scale.z = 0.5
-            marker.color.a = 1.0  # Fully opaque
-            marker.color.r = 0.0
-            marker.color.g = 0.0
-            marker.color.b = 1.0
-
-            self.marker_pub.publish(marker)
-
-            # try:
-            #     # Wait until the transform is available
-            #     self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
-                
-            #     # Perform the transform
-            #     # point_in_map = self.tf_buf.transform(point_stamped, "map", rospy.Duration(1.0))
-            #     point_in_map = self.tf_buf.transform(point_stamped, "map")
-
-            #     self.get_logger().info(f"point: {point_in_map.point}")        
-
-            #     # Publish the transformed point
-            #     self.object_pose_pub.publish(object_pose_array)
-            #     self.object_pose_pub_single.publish(point_in_map)
-
-            # except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            #     self.get_logger().warn(f"Transform failed: {e}")            
-
             
+            # point_stamped = PointStamped()
+            # point_stamped.header = object_pose_array.header
+            # point_stamped.point = object_pose_array.poses[0].position
+            # point_stamped.header.frame_id = "rgb_camera_link"
+            # x = point_stamped.point.x
+            # y = point_stamped.point.y
+            # z = point_stamped.point.z
+            # point_stamped.point.x = z
+            # point_stamped.point.y = y
+            # point_stamped.point.z = -x
+            # self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
+            # point_in_map = self.tf_buf.transform(point_stamped, "map")
+            # self.object_pose_pub_single.publish(point_in_map)
 
+            # Publish marker array
+            if len(marker_array.markers) > 0:
+                self.marker_pub.publish(marker_array)
 
             self.detection_info_pub.publish(object_info_array)
             self.object_point_clouds_pub.publish(point_cloud_array)
@@ -500,9 +538,6 @@ class ObjectDetectionNode(Node):
             )
 
             self.get_logger().debug(f"Processing time: {time.time()-start_time:.3f}s")
-
-            # while True:
-            #     print("STOP")
 
         except Exception as e:
             self.get_logger().error(f"Error in sync_callback: {str(e)}")
