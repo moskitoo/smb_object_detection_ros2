@@ -14,6 +14,9 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
 from geometry_msgs.msg import PoseArray, Pose, Quaternion, PointStamped
 import tf2_ros
 import tf2_geometry_msgs
+from rclpy.time import Time
+from builtin_interfaces.msg import Duration
+from visualization_msgs.msg import Marker
 
 from object_detection_msgs.msg import (
     PointCloudArray,
@@ -74,13 +77,18 @@ class ObjectDetectionNode(Node):
             ],
         )
 
+        self.tf_buf = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buf, self)
+
+        self.marker_pub = self.create_publisher(Marker, "/detected_marker", 10)
+
         # ---------- Setup publishers ----------
         self.object_pose_pub = self.create_publisher(
             PoseArray, self.get_parameter("object_detection_pose_topic").value, 10
         )
 
         self.object_pose_pub_single = self.create_publisher(
-            PointStamped, "/goal_point", 10
+            PointStamped, "/way_point", 10
         )
 
         self.object_detection_img_pub = self.create_publisher(
@@ -399,14 +407,92 @@ class ObjectDetectionNode(Node):
                         self.get_logger().warn(f"Could not draw circle: {str(e)}")
             # Publish results
 
-            points_stamped = PointStamped(header=header)
+            # points_stamped = PointStamped(header=header)
 
-            points_stamped.header.frame_id = "map"
+            # # points_stamped.header.frame_id = "rgb_camera_link"
+            # # points_stamped.header.frame_id = "map"
 
-            points_stamped.point = object_pose_array.poses[0].position
+            # points_stamped.point = object_pose_array.poses[0].position
 
+            # tf_buf = tf2_ros.Buffer()
+            # tf_listener = tf2_ros.TransformListener(tf_buf)
+            # target_pt = tf_buf.Transform(points_stamped.point, "map")
+
+            # points_stamped.point = target_pt
+
+            # self.object_pose_pub.publish(object_pose_array)
+            # self.object_pose_pub_single.publish(points_stamped)
+            # self.object_pose_pub_single.publish(points_stamped)
+
+            point_stamped = PointStamped()
+            point_stamped.header = object_pose_array.header  # e.g., "rgb_camera_link"
+            point_stamped.point = object_pose_array.poses[0].position
+
+            point_stamped.header.frame_id = "rgb_camera_link"
+
+            x = point_stamped.point.x
+            y = point_stamped.point.y
+            z = point_stamped.point.z
+
+            point_stamped.point.x = z
+            point_stamped.point.y = y
+            point_stamped.point.z = -x
+
+            self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
+                
+            # Perform the transform
+            # point_in_map = self.tf_buf.transform(point_stamped, "map", rospy.Duration(1.0))
+            point_in_map = self.tf_buf.transform(point_stamped, "map")
+
+            self.get_logger().info(f"point: {point_in_map.point}")        
+
+            # Publish the transformed point
             self.object_pose_pub.publish(object_pose_array)
-            self.object_pose_pub_single.publish(points_stamped)
+            self.object_pose_pub_single.publish(point_in_map)
+            self.object_pose_pub_single.publish(point_in_map)
+
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.header.stamp = image_msg.header.stamp
+            marker.ns = "detected_objects"
+            marker.id = 0
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.pose.position = point_in_map.point
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.3
+            marker.scale.y = 0.3
+            marker.scale.z = 0.3
+            marker.color.a = 1.0  # Fully opaque
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+
+            self.marker_pub.publish(marker)
+
+            # try:
+            #     # Wait until the transform is available
+            #     self.tf_buf.can_transform("map", point_stamped.header.frame_id, Time())
+                
+            #     # Perform the transform
+            #     # point_in_map = self.tf_buf.transform(point_stamped, "map", rospy.Duration(1.0))
+            #     point_in_map = self.tf_buf.transform(point_stamped, "map")
+
+            #     self.get_logger().info(f"point: {point_in_map.point}")        
+
+            #     # Publish the transformed point
+            #     self.object_pose_pub.publish(object_pose_array)
+            #     self.object_pose_pub_single.publish(point_in_map)
+
+            # except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            #     self.get_logger().warn(f"Transform failed: {e}")            
+
+            
+
+
             self.detection_info_pub.publish(object_info_array)
             self.object_point_clouds_pub.publish(point_cloud_array)
             self.object_detection_img_pub.publish(
@@ -414,6 +500,9 @@ class ObjectDetectionNode(Node):
             )
 
             self.get_logger().debug(f"Processing time: {time.time()-start_time:.3f}s")
+
+            # while True:
+            #     print("STOP")
 
         except Exception as e:
             self.get_logger().error(f"Error in sync_callback: {str(e)}")

@@ -19,6 +19,8 @@
   <depend>visualization_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>message_filters</depend>
+  <depend>tf2_ros</depend>
+  
 
 
   <export>
