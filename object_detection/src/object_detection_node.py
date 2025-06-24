@@ -17,6 +17,10 @@ import tf2_geometry_msgs
 from rclpy.time import Time
 from builtin_interfaces.msg import Duration
 from visualization_msgs.msg import Marker, MarkerArray
+import csv
+import os
+from datetime import datetime
+from std_srvs.srv import Trigger
 
 from object_detection_msgs.msg import (
     PointCloudArray,
@@ -74,9 +78,28 @@ class ObjectDetectionNode(Node):
                 ("object_specific_file", "object_specific.yaml"),
                 ("min_cluster_size", 5),
                 ("cluster_selection_epsilon", 0.08),
-                ("target_classes", ["chair", "person"]),  # Add target classes parameter
+                ("target_classes", ["chair", "person"]),
                 ("duplicate_distance_threshold", 1.0),
+                ("csv_output_dir", "~/detections_logs"),
             ],
+        )
+
+        # ---------- Initialize CSV logging ----------
+        self.detections_data = []
+        self.csv_output_dir = os.path.expanduser(self.get_parameter("csv_output_dir").value)
+        os.makedirs(self.csv_output_dir, exist_ok=True)
+        
+        # Generate CSV filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.csv_filename = os.path.join(self.csv_output_dir, f"detections_{timestamp}.csv")
+        
+        self.get_logger().info(f"[ObjectDetection Node] CSV logging initialized. Output file: {self.csv_filename}")
+
+        # ---------- Create save CSV service ----------
+        self.save_csv_service = self.create_service(
+            Trigger, 
+            'save_detections_csv', 
+            self.save_csv_callback
         )
 
         self.tf_buf = tf2_ros.Buffer()
@@ -208,6 +231,65 @@ class ObjectDetectionNode(Node):
             self.image_info_callback,
             10,
         )
+
+    def add_detection_to_csv_data(self, class_name, x, y, z, timestamp=None):
+        """Add a detection to the CSV data list"""
+        if timestamp is None:
+            timestamp = datetime.now().isoformat()
+        
+        detection_entry = {
+            'timestamp': timestamp,
+            'class': class_name,
+            'x': x,
+            'y': y,
+            'z': z
+        }
+        self.detections_data.append(detection_entry)
+        
+        self.get_logger().debug(f"Added detection to CSV data: {class_name} at ({x:.3f}, {y:.3f}, {z:.3f})")
+
+    def save_csv_callback(self, request, response):
+        """Service callback to save CSV file on demand"""
+        try:
+            self.save_detections_csv()
+            response.success = True
+            response.message = f"Successfully saved {len(self.detections_data)} detections to {self.csv_filename}"
+            self.get_logger().info(response.message)
+        except Exception as e:
+            response.success = False
+            response.message = f"Failed to save CSV: {str(e)}"
+            self.get_logger().error(response.message)
+        
+        return response
+
+    def save_detections_csv(self):
+        """Save all detections to CSV file"""
+        if not self.detections_data:
+            self.get_logger().warn("No detections to save to CSV")
+            return
+        
+        try:
+            with open(self.csv_filename, 'w', newline='') as csvfile:
+                fieldnames = ['timestamp', 'class', 'x', 'y', 'z']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                writer.writeheader()
+                for detection in self.detections_data:
+                    writer.writerow(detection)
+            
+            self.get_logger().info(f"Saved {len(self.detections_data)} detections to {self.csv_filename}")
+            
+        except Exception as e:
+            self.get_logger().error(f"Failed to save CSV file: {str(e)}")
+            raise
+
+    def __del__(self):
+        """Destructor - save CSV when node is destroyed"""
+        try:
+            if hasattr(self, 'detections_data') and self.detections_data:
+                self.save_detections_csv()
+        except:
+            pass  # Ignore errors during destruction
 
     def is_duplicate_marker(self, position, class_name, threshold):
         """Check if a marker is too close to existing markers of the same class"""
@@ -351,6 +433,9 @@ class ObjectDetectionNode(Node):
             # MarkerArray for all detected objects
             marker_array = MarkerArray()
             marker_id = 0
+            detection_timestamp = datetime.fromtimestamp(
+                image_msg.header.stamp.sec + image_msg.header.stamp.nanosec * 1e-9
+            ).isoformat()
 
             # Populate messages
             for i, obj in enumerate(object_list):
@@ -394,6 +479,14 @@ class ObjectDetectionNode(Node):
                     object_detection_result["ymax"][i]
                 )
                 object_info_array.info.append(object_information)
+
+                self.add_detection_to_csv_data(
+                    class_name,
+                    float(obj.pos[0]),
+                    float(obj.pos[1]), 
+                    float(obj.pos[2]),
+                    detection_timestamp
+                )
 
                 # Create point cloud
                 object_point_cloud = pointcloud_in_fov[obj.pt_indices]
@@ -546,15 +639,27 @@ class ObjectDetectionNode(Node):
 def main(args=None):
     rclpy.init(args=args)
 
+    node = None
     try:
         node = ObjectDetectionNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down")
+        if node:
+            node.get_logger().info("Shutting down - saving CSV file...")
+            try:
+                node.save_detections_csv()
+            except Exception as e:
+                node.get_logger().error(f"Failed to save CSV on shutdown: {str(e)}")
     except Exception as e:
-        node.get_logger().fatal(f"Fatal error: {str(e)}")
+        if node:
+            node.get_logger().fatal(f"Fatal error: {str(e)}")
+            try:
+                node.save_detections_csv()
+            except:
+                pass
     finally:
-        node.destroy_node()
+        if node:
+            node.destroy_node()
         rclpy.shutdown()
 
 
