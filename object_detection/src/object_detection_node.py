@@ -480,14 +480,6 @@ class ObjectDetectionNode(Node):
                 )
                 object_info_array.info.append(object_information)
 
-                self.add_detection_to_csv_data(
-                    class_name,
-                    float(obj.pos[0]),
-                    float(obj.pos[1]), 
-                    float(obj.pos[2]),
-                    detection_timestamp
-                )
-
                 # Create point cloud
                 object_point_cloud = pointcloud_in_fov[obj.pt_indices]
                 point_cloud_msg = array_to_pointcloud2(
@@ -547,6 +539,14 @@ class ObjectDetectionNode(Node):
 
                         # Add to tracking
                         self.add_marker_position(point_in_map.point, class_name)
+
+                        self.add_detection_to_csv_data(
+                            class_name,
+                            float(obj.pos[0]),
+                            float(obj.pos[1]), 
+                            float(obj.pos[2]),
+                            detection_timestamp
+                        )                        
                         
                         self.get_logger().info(f"Added new {class_name} marker at position: "
                                              f"x={point_in_map.point.x:.2f}, "
