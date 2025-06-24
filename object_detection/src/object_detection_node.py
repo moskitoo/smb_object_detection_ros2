@@ -182,7 +182,7 @@ class ObjectDetectionNode(Node):
                 "iou": self.get_parameter("iou").value,
                 "checkpoint": None,
                 "classes": None,
-                "multiple_instance": False,
+                "multiple_instance": True,
             },
         )
 
@@ -503,7 +503,7 @@ class ObjectDetectionNode(Node):
                     point_stamped.header.frame_id = "rgb_camera_link"
                     point_stamped.header.stamp = image_msg.header.stamp
                     
-                    # Apply coordinate transformation
+                    # Apply coordinate transformation - TODO check actual correct TF
                     x = object_pose.position.x
                     y = object_pose.position.y
                     z = object_pose.position.z
