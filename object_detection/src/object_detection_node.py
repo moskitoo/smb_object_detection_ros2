@@ -79,8 +79,8 @@ class ObjectDetectionNode(Node):
                 ("min_cluster_size", 5),
                 ("cluster_selection_epsilon", 0.08),
                 ("target_classes", ["chair", "person"]),
-                ("duplicate_distance_threshold", 1.0),
-                ("csv_output_dir", "~/detections_logs"),
+                ("duplicate_distance_threshold", 0.01),
+                ("csv_output_dir", "/smb_ros2_workspace/detections"),
             ],
         )
 
