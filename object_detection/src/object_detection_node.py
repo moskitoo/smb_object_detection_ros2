@@ -106,6 +106,7 @@ class ObjectDetectionNode(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf, self)
 
         self.marker_pub = self.create_publisher(MarkerArray, "/detected_marker", 10)
+        self.marker_cam_frame_pub = self.create_publisher(MarkerArray, "/detected_marker_cam_frame", 10)
 
         self.previous_markers = {}
 
@@ -432,6 +433,7 @@ class ObjectDetectionNode(Node):
 
             # MarkerArray for all detected objects
             marker_array = MarkerArray()
+            marker_array_cam_frame = MarkerArray()
             marker_id = 0
             detection_timestamp = datetime.fromtimestamp(
                 image_msg.header.stamp.sec + image_msg.header.stamp.nanosec * 1e-9
@@ -534,7 +536,13 @@ class ObjectDetectionNode(Node):
                         marker.color.g = color["g"]
                         marker.color.b = color["b"]
 
+                        marker_cam_frame = marker
+
+                        marker_cam_frame.header.frame_id = "rgb_camera_link"
+                        marker_cam_frame.pose.position = object_pose.position
+
                         marker_array.markers.append(marker)
+                        marker_array_cam_frame.markers.append(marker_cam_frame)
                         marker_id += 1
 
                         # Add to tracking
@@ -623,6 +631,7 @@ class ObjectDetectionNode(Node):
             # Publish marker array
             if len(marker_array.markers) > 0:
                 self.marker_pub.publish(marker_array)
+                self.marker_cam_frame_pub.publish(marker_array)
 
             self.detection_info_pub.publish(object_info_array)
             self.object_point_clouds_pub.publish(point_cloud_array)
