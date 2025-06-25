@@ -107,7 +107,11 @@ class ObjectDetectorONNX:
                     self.model_dir_path, self.model + ".onnx"
                 )
                 print(f"Loading ONNX model from: {onnx_model_path}")
-                self.session = rt.InferenceSession(onnx_model_path)
+                self.session = rt.InferenceSession(onnx_model_path, providers=[
+                        #'TensorrtExecutionProvider',
+                        'CUDAExecutionProvider',
+                        'CPUExecutionProvider'
+                    ])
                 self.input_name = self.session.get_inputs()[0].name
             else:
                 raise ValueError("No model path defined for ONNX model.")
