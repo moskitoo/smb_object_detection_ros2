@@ -24,8 +24,16 @@ install(DIRECTORY src/object_detection
 # Install Python executables
 install(PROGRAMS
   src/object_detection_node.py
+  src/detection_processor_node.py
+  src/dummy.py
   DESTINATION lib/${PROJECT_NAME}
 )
+
+# install(PROGRAMS
+#   src/dummy.py
+#   DESTINATION lib/${PROJECT_NAME}
+# )
+
 
 # Install launch files, config files, rviz files
 install(DIRECTORY 
