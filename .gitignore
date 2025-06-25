@@ -3,3 +3,4 @@
 *.bag
 __pycache__/
 object_detection/models/
+detections
