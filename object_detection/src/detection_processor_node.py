@@ -35,14 +35,14 @@ class DetectionProcessorNode(Node):
         # self.static_broadcaster = StaticTransformBroadcaster(self)
         # self.publish_camera_correction_transform()
 
-        # ---------- Initialize parameters ----------
+                # ---------- Initialize parameters ----------
         self.declare_parameters(
             namespace="",
             parameters=[
                 ("detection_info_topic", "detection_info"),
                 ("target_classes", ["chair", "person"]),
                 ("duplicate_distance_threshold", 0.0),
-                ("csv_output_dir", "/home/team7/workspaces/smb_ros2_workspace/detections"),
+                ("csv_output_dir", "detections"),  # Relative path from current working directory
                 ("marker_topic", "/detection_markers"),
                 ("marker_lifetime", 30.0),  # seconds
                 ("target_frame", "map"),  # Frame to transform to
@@ -55,13 +55,19 @@ class DetectionProcessorNode(Node):
         self.detections_data = []  # List to store all detections for CSV
 
         # ---------- Initialize CSV logging ----------
-        self.csv_output_dir = os.path.expanduser(self.get_parameter("csv_output_dir").value)
-        # print(os.path.join("~/workspaces", self.csv_output_dir))
-        os.makedirs("~/workspaces/" + self.csv_output_dir, exist_ok=True)
+        # Use relative path from current working directory
+        self.csv_output_dir = self.get_parameter("csv_output_dir").value
+        
+        # Create directory if it doesn't exist
+        os.makedirs(self.csv_output_dir, exist_ok=True)
+        
         # Generate CSV filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.csv_filename = os.path.join(self.csv_output_dir, f"processed_detections_{timestamp}.csv")
-        self.get_logger().info(f"[Detection Processor Node] CSV logging initialized. Output file: {self.csv_filename}")
+        
+        # Log the absolute path for clarity
+        absolute_path = os.path.abspath(self.csv_filename)
+        self.get_logger().info(f"[Detection Processor Node] CSV logging initialized. Output file: {absolute_path}")
 
         # ---------- Setup publishers ----------
         self.marker_pub = self.create_publisher(
