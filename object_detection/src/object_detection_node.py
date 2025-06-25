@@ -70,6 +70,7 @@ class ObjectDetectionNode(Node):
                 ("min_cluster_size", 5),
                 ("cluster_selection_epsilon", 0.08),
                 ("multiple_instance", False),
+                ("classes", "[56]"), # only chair by default
             ],
         )
 
@@ -136,7 +137,7 @@ class ObjectDetectionNode(Node):
                 "confident": self.get_parameter("confident").value,
                 "iou": self.get_parameter("iou").value,
                 "checkpoint": None,
-                "classes": None,
+                "classes": self.get_parameter("classes").value,
                 "multiple_instance": self.get_parameter("multiple_instance").value,
             },
         )
