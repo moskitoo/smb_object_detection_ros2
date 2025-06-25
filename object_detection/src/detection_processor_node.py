@@ -32,8 +32,8 @@ class DetectionProcessorNode(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.static_broadcaster = StaticTransformBroadcaster(self)
-        self.publish_camera_correction_transform()
+        # self.static_broadcaster = StaticTransformBroadcaster(self)
+        # self.publish_camera_correction_transform()
 
         # ---------- Initialize parameters ----------
         self.declare_parameters(
