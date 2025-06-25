@@ -15,7 +15,6 @@ from rclpy.time import Time
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from geometry_msgs.msg import PointStamped, TransformStamped
 
-print("---------")
 from object_detection_msgs.msg import (
     ObjectDetectionInfo,
     ObjectDetectionInfoArray,
@@ -24,7 +23,6 @@ from object_detection_msgs.msg import (
 class DetectionProcessorNode(Node):
     def __init__(self):
         super().__init__("detection_processor_node")
-        print("===========-")
 
         self.get_logger().info(
             "[Detection Processor Node] Initialization starts ..."
@@ -44,31 +42,26 @@ class DetectionProcessorNode(Node):
                 ("detection_info_topic", "detection_info"),
                 ("target_classes", ["chair", "person"]),
                 ("duplicate_distance_threshold", 0.0),
-                ("csv_output_dir", "/smb_ros2_workspace/detections"),
+                ("csv_output_dir", "/home/team7/workspaces/smb_ros2_workspace/detections"),
                 ("marker_topic", "/detection_markers"),
                 ("marker_lifetime", 30.0),  # seconds
                 ("target_frame", "map"),  # Frame to transform to
                 ("tf_timeout", 1.0),  # TF lookup timeout in seconds
             ],
         )
-        print("+++++++++++")
 
         # ---------- Initialize detection tracking ----------
         self.previous_detections = {}  # Dictionary to track previous detections by class
         self.detections_data = []  # List to store all detections for CSV
-        print("//////////")
 
         # ---------- Initialize CSV logging ----------
         self.csv_output_dir = os.path.expanduser(self.get_parameter("csv_output_dir").value)
         # print(os.path.join("~/workspaces", self.csv_output_dir))
         os.makedirs("~/workspaces/" + self.csv_output_dir, exist_ok=True)
-        print("/222222222")
         # Generate CSV filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.csv_filename = os.path.join(self.csv_output_dir, f"processed_detections_{timestamp}.csv")
-        print("/212313124122")
         self.get_logger().info(f"[Detection Processor Node] CSV logging initialized. Output file: {self.csv_filename}")
-        print("+///////////+")
 
         # ---------- Setup publishers ----------
         self.marker_pub = self.create_publisher(
@@ -173,7 +166,6 @@ class DetectionProcessorNode(Node):
             processed_count = 0
             
             for detection_info in msg.info:
-                self.get_logger().info("enter ===========")
 
                 class_name = detection_info.class_id
                 
@@ -190,7 +182,6 @@ class DetectionProcessorNode(Node):
                     msg.header.stamp,
                     "_original"
                 )
-                self.get_logger().info("000000000 ==")
                 if original_marker:
                     marker_array.markers.append(original_marker)
 
@@ -379,6 +370,18 @@ class DetectionProcessorNode(Node):
 
     def save_csv_callback(self, request, response):
         """Service callback to save CSV file on demand"""
+
+        self.add_detection_to_csv_data(
+            "test",
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            "test",
+            0.0,
+            "test"  # Add frame info
+        )
+
         try:
             self.save_detections_csv()
             response.success = True
