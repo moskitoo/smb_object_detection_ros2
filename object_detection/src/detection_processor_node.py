@@ -348,11 +348,31 @@ class DetectionProcessorNode(Node):
             self.get_logger().error(f"Failed to create marker: {str(e)}")
             return None
 
+    # def add_detection_to_csv_data(self, class_name, x, y, z, confidence, estimation_type, timestamp=None, frame_id="map"):
+    #     """Add a detection to the CSV data list"""
+    #     if timestamp is None:
+    #         timestamp = datetime.now().isoformat()
+        
+    #     detection_entry = {
+    #         'timestamp': timestamp,
+    #         'class': class_name,
+    #         'x': x,
+    #         'y': y,
+    #         'z': z,
+    #         'confidence': confidence,
+    #         'estimation_type': estimation_type,
+    #         'frame_id': frame_id
+    #     }
+    #     self.detections_data.append(detection_entry)
+        
+    #     self.get_logger().debug(f"Added detection to CSV data: {class_name} at ({x:.3f}, {y:.3f}, {z:.3f}) "
+    #                            f"in frame '{frame_id}' with confidence {confidence:.3f}")
+
     def add_detection_to_csv_data(self, class_name, x, y, z, confidence, estimation_type, timestamp=None, frame_id="map"):
-        """Add a detection to the CSV data list"""
+        """Add a detection to the CSV data list and immediately save it"""
         if timestamp is None:
             timestamp = datetime.now().isoformat()
-        
+
         detection_entry = {
             'timestamp': timestamp,
             'class': class_name,
@@ -364,23 +384,32 @@ class DetectionProcessorNode(Node):
             'frame_id': frame_id
         }
         self.detections_data.append(detection_entry)
-        
-        self.get_logger().debug(f"Added detection to CSV data: {class_name} at ({x:.3f}, {y:.3f}, {z:.3f}) "
-                               f"in frame '{frame_id}' with confidence {confidence:.3f}")
+
+        self.get_logger().debug(
+            f"Added detection to CSV data: {class_name} at ({x:.3f}, {y:.3f}, {z:.3f}) "
+            f"in frame '{frame_id}' with confidence {confidence:.3f}"
+        )
+
+        # 💾 Save CSV after every addition
+        try:
+            self.save_detections_csv()
+        except Exception as e:
+            self.get_logger().error(f"Failed to auto-save CSV after detection: {str(e)}")
+
 
     def save_csv_callback(self, request, response):
         """Service callback to save CSV file on demand"""
 
-        self.add_detection_to_csv_data(
-            "test",
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            "test",
-            0.0,
-            "test"  # Add frame info
-        )
+        # self.add_detection_to_csv_data(
+        #     "test",
+        #     0.0,
+        #     0.0,
+        #     0.0,
+        #     0.0,
+        #     "test",
+        #     0.0,
+        #     "test"  # Add frame info
+        # )
 
         try:
             self.save_detections_csv()
@@ -396,9 +425,6 @@ class DetectionProcessorNode(Node):
 
     def save_detections_csv(self):
         """Save all detections to CSV file"""
-        if not self.detections_data:
-            self.get_logger().warn("No detections to save to CSV")
-            return
         
         try:
             with open(self.csv_filename, 'w', newline='') as csvfile:
