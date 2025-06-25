@@ -24,7 +24,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "gpu",
-            default_value="off",
+            default_value="local",
             description="Run on GPU? Options: 'local', 'remote' (default), 'off'",
             choices=["local", "remote", "off"],
         ),
