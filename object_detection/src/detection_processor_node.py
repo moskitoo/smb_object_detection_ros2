@@ -193,7 +193,8 @@ class DetectionProcessorNode(Node):
                     point_stamped.point = detection_info.position
 
                     # point_stamped.header.frame_id = "rgb_camera_link"
-                    point_stamped.header.frame_id = "rgb_camera_link_corrected"
+                    # point_stamped.header.frame_id = "rgb_camera_link_corrected"
+                    point_stamped.header.frame_id = "rgb_camera_optical_link"
                     
                     # Check if transform is available
                     if self.tf_buffer.can_transform(
