@@ -15,6 +15,7 @@ from rclpy.time import Time
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from geometry_msgs.msg import PointStamped, TransformStamped
 
+print("---------")
 from object_detection_msgs.msg import (
     ObjectDetectionInfo,
     ObjectDetectionInfoArray,
@@ -23,6 +24,7 @@ from object_detection_msgs.msg import (
 class DetectionProcessorNode(Node):
     def __init__(self):
         super().__init__("detection_processor_node")
+        print("===========-")
 
         self.get_logger().info(
             "[Detection Processor Node] Initialization starts ..."
@@ -49,20 +51,24 @@ class DetectionProcessorNode(Node):
                 ("tf_timeout", 1.0),  # TF lookup timeout in seconds
             ],
         )
+        print("+++++++++++")
 
         # ---------- Initialize detection tracking ----------
         self.previous_detections = {}  # Dictionary to track previous detections by class
         self.detections_data = []  # List to store all detections for CSV
+        print("//////////")
 
         # ---------- Initialize CSV logging ----------
         self.csv_output_dir = os.path.expanduser(self.get_parameter("csv_output_dir").value)
-        os.makedirs(self.csv_output_dir, exist_ok=True)
-        
+        # print(os.path.join("~/workspaces", self.csv_output_dir))
+        os.makedirs("~/workspaces/" + self.csv_output_dir, exist_ok=True)
+        print("/222222222")
         # Generate CSV filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.csv_filename = os.path.join(self.csv_output_dir, f"processed_detections_{timestamp}.csv")
-        
+        print("/212313124122")
         self.get_logger().info(f"[Detection Processor Node] CSV logging initialized. Output file: {self.csv_filename}")
+        print("+///////////+")
 
         # ---------- Setup publishers ----------
         self.marker_pub = self.create_publisher(
@@ -167,6 +173,8 @@ class DetectionProcessorNode(Node):
             processed_count = 0
             
             for detection_info in msg.info:
+                self.get_logger().info("enter ===========")
+
                 class_name = detection_info.class_id
                 
                 # Check if this class is in our target classes
@@ -182,6 +190,7 @@ class DetectionProcessorNode(Node):
                     msg.header.stamp,
                     "_original"
                 )
+                self.get_logger().info("000000000 ==")
                 if original_marker:
                     marker_array.markers.append(original_marker)
 
