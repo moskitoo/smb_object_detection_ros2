@@ -19,12 +19,12 @@ def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument(
             "smb_name",
-            default_value=EnvironmentVariable("ROBOT_ID", default_value="sim"),
+            default_value=EnvironmentVariable("ROBOT_ID", default_value="264"),
             description="Name of the SMB in the format smb26x (relevant for calibrations)",
         ),
         DeclareLaunchArgument(
             "gpu",
-            default_value="local",
+            default_value="off",
             description="Run on GPU? Options: 'local', 'remote' (default), 'off'",
             choices=["local", "remote", "off"],
         ),
@@ -135,7 +135,7 @@ def generate_launch_description():
                     {"device": "0" if LaunchConfiguration("gpu") != "off" else "cpu"},
                     {"confident": 0.0},
                     {"iou": 0.1},
-                    {"classes": LaunchConfiguration("object_detection_classes")},
+                    # {"classes": LaunchConfiguration("object_detection_classes")},
                     {"multiple_instance": False},
                     # Object localization related
                     {"model_method": "hdbscan"},
