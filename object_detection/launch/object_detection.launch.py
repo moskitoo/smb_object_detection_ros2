@@ -115,7 +115,7 @@ def generate_launch_description():
                     {"confident": 0.0},
                     {"iou": 0.0},
                     {"classes": LaunchConfiguration("object_detection_classes")},
-                    {"multiple_instance": False},
+                    {"multiple_instance": True},
                     # Object localization related
                     {"model_method": "hdbscan"},
                     {"ground_percentage": 25},

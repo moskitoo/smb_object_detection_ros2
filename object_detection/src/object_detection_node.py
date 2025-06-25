@@ -69,6 +69,7 @@ class ObjectDetectionNode(Node):
                 ("object_specific_file", "object_specific.yaml"),
                 ("min_cluster_size", 5),
                 ("cluster_selection_epsilon", 0.08),
+                ("multiple_instance", False),
             ],
         )
 
@@ -136,7 +137,7 @@ class ObjectDetectionNode(Node):
                 "iou": self.get_parameter("iou").value,
                 "checkpoint": None,
                 "classes": None,
-                "multiple_instance": False,
+                "multiple_instance": self.get_parameter("multiple_instance").value,
             },
         )
 
