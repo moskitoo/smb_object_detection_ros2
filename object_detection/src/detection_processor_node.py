@@ -174,6 +174,17 @@ class DetectionProcessorNode(Node):
                     self.get_logger().debug(f"Skipping object of class '{class_name}' - not in target classes")
                     continue
 
+                # Create marker in original camera frame first
+                original_marker = self.create_detection_marker(
+                    detection_info.position,
+                    "rgb_camera_link_corrected",
+                    class_name,
+                    msg.header.stamp,
+                    "_original"
+                )
+                if original_marker:
+                    marker_array.markers.append(original_marker)
+
                 # Extract position and transform to target frame
                 try:
                     # Create PointStamped message
@@ -201,8 +212,8 @@ class DetectionProcessorNode(Node):
                         transformed_position = point_in_target_frame.point
                         
                         self.get_logger().info(f"Transformed {class_name} from frame '{msg.header.frame_id}' to '{target_frame}': "
-                                              f"({detection_info.position.x:.3f}, {detection_info.position.y:.3f}, {detection_info.position.z:.3f}) -> "
-                                              f"({transformed_position.x:.3f}, {transformed_position.y:.3f}, {transformed_position.z:.3f})")
+                                            f"({detection_info.position.x:.3f}, {detection_info.position.y:.3f}, {detection_info.position.z:.3f}) -> "
+                                            f"({transformed_position.x:.3f}, {transformed_position.y:.3f}, {transformed_position.z:.3f})")
                     else:
                         self.get_logger().warn(f"Cannot transform from '{msg.header.frame_id}' to '{target_frame}' for {class_name} detection")
                         continue
@@ -228,21 +239,22 @@ class DetectionProcessorNode(Node):
                         target_frame  # Add frame info
                     )
                     
-                    # Create visualization marker (using transformed position and target frame)
-                    marker = self.create_detection_marker(
+                    # Create visualization marker in target frame
+                    transformed_marker = self.create_detection_marker(
                         transformed_position,
                         target_frame,
                         class_name,
-                        msg.header.stamp
+                        msg.header.stamp,
+                        "_transformed"
                     )
-                    if marker:
-                        marker_array.markers.append(marker)
+                    if transformed_marker:
+                        marker_array.markers.append(transformed_marker)
                     
                     processed_count += 1
                     
                     self.get_logger().info(f"Processed new {class_name} detection at position ({target_frame}): "
-                                         f"x={transformed_position.x:.2f}, y={transformed_position.y:.2f}, z={transformed_position.z:.2f}, "
-                                         f"confidence={detection_info.confidence:.2f}")
+                                        f"x={transformed_position.x:.2f}, y={transformed_position.y:.2f}, z={transformed_position.z:.2f}, "
+                                        f"confidence={detection_info.confidence:.2f}")
                 else:
                     self.get_logger().debug(f"Skipped duplicate {class_name} detection")
 
@@ -284,37 +296,47 @@ class DetectionProcessorNode(Node):
             # Default color if class not found
             return {"r": 0.5, "g": 0.5, "b": 0.5}
 
-    def create_detection_marker(self, position, frame_id, class_name, stamp):
+    def create_detection_marker(self, position, frame_id, class_name, stamp, namespace_suffix=""):
         """Create a visualization marker for a detection"""
         try:
             marker = Marker()
             marker.header.frame_id = frame_id
             marker.header.stamp = stamp
-            marker.ns = f"detection_{class_name}"
+            marker.ns = f"detection_{class_name}{namespace_suffix}"
             marker.id = self.marker_id_counter
             self.marker_id_counter += 1
             
             marker.type = Marker.SPHERE
             marker.action = Marker.ADD
             
-            # Set position (already transformed)
+            # Set position
             marker.pose.position = position
             marker.pose.orientation.x = 0.0
             marker.pose.orientation.y = 0.0
             marker.pose.orientation.z = 0.0
             marker.pose.orientation.w = 1.0
             
-            # Set scale
-            marker.scale.x = 0.3
-            marker.scale.y = 0.3
-            marker.scale.z = 0.3
+            # Set scale - make original frame markers slightly smaller to distinguish
+            if namespace_suffix == "_original":
+                marker.scale.x = 0.2
+                marker.scale.y = 0.2
+                marker.scale.z = 0.2
+            else:
+                marker.scale.x = 0.3
+                marker.scale.y = 0.3
+                marker.scale.z = 0.3
             
             # Set color based on class
             color = self.get_class_color(class_name)
             marker.color.r = color["r"]
             marker.color.g = color["g"]
             marker.color.b = color["b"]
-            marker.color.a = 0.8  # Semi-transparent
+            
+            # Make original frame markers more transparent to distinguish
+            if namespace_suffix == "_original":
+                marker.color.a = 0.5  # More transparent for original frame
+            else:
+                marker.color.a = 0.8  # Less transparent for transformed frame
             
             # Set lifetime
             # marker.lifetime.sec = int(self.get_parameter("marker_lifetime").value)
