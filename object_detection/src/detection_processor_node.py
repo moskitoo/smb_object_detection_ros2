@@ -12,6 +12,8 @@ import tf2_ros
 from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 import tf2_geometry_msgs
 from rclpy.time import Time
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from geometry_msgs.msg import PointStamped, TransformStamped
 
 from object_detection_msgs.msg import (
     ObjectDetectionInfo,
@@ -30,13 +32,16 @@ class DetectionProcessorNode(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
+        self.static_broadcaster = StaticTransformBroadcaster(self)
+        self.publish_camera_correction_transform()
+
         # ---------- Initialize parameters ----------
         self.declare_parameters(
             namespace="",
             parameters=[
                 ("detection_info_topic", "detection_info"),
                 ("target_classes", ["chair", "person"]),
-                ("duplicate_distance_threshold", 0.5),
+                ("duplicate_distance_threshold", 0.0),
                 ("csv_output_dir", "/smb_ros2_workspace/detections"),
                 ("marker_topic", "/detection_markers"),
                 ("marker_lifetime", 30.0),  # seconds
@@ -97,6 +102,52 @@ class DetectionProcessorNode(Node):
             "[Detection Processor Node] Initialization complete. Waiting for detections..."
         )
 
+    def publish_camera_correction_transform(self):
+        """Publish static transform to correct camera frame orientation"""
+        static_transform = TransformStamped()
+        
+        static_transform.header.stamp = self.get_clock().now().to_msg()
+        static_transform.header.frame_id = "rgb_camera_link"
+        static_transform.child_frame_id = "rgb_camera_link_corrected"
+        
+        # No translation needed
+        static_transform.transform.translation.x = 0.0
+        static_transform.transform.translation.y = 0.0
+        static_transform.transform.translation.z = 0.0
+        
+        # Apply rotations: 90 degrees around Y (clockwise), then 90 degrees around Z (clockwise)
+        # First rotation: 90 degrees clockwise around Y axis
+        # Second rotation: 90 degrees clockwise around Z axis
+        # Combined quaternion for these rotations
+        import math
+        
+        # 90 degrees clockwise around Y = -90 degrees around Y
+        y_rot = -math.pi / 2
+        # 90 degrees clockwise around Z = -90 degrees around Z  
+        z_rot = -math.pi / 2
+        
+        # Convert to quaternion (YZ rotation order)
+        cy = math.cos(y_rot * 0.5)
+        sy = math.sin(y_rot * 0.5)
+        cz = math.cos(z_rot * 0.5)
+        sz = math.sin(z_rot * 0.5)
+        
+        # Quaternion multiplication for Y then Z rotation
+        static_transform.transform.rotation.x = sy * cz
+        static_transform.transform.rotation.y = cy * sz
+        static_transform.transform.rotation.z = cy * cz * (-sz/cz) + sy * sz
+        static_transform.transform.rotation.w = cy * cz
+        
+        # Simpler approach - use known quaternion values for this specific rotation
+        # 90 deg CW around Y, then 90 deg CW around Z
+        static_transform.transform.rotation.x = -0.5
+        static_transform.transform.rotation.y = 0.5
+        static_transform.transform.rotation.z = -0.5
+        static_transform.transform.rotation.w = 0.5
+        
+        self.static_broadcaster.sendTransform(static_transform)
+        self.get_logger().info("Published camera correction transform: rgb_camera_link -> rgb_camera_link_corrected")        
+
     def detection_info_callback(self, msg):
         """Process incoming detection info messages"""
         try:
@@ -130,12 +181,13 @@ class DetectionProcessorNode(Node):
                     point_stamped.header = msg.header
                     point_stamped.point = detection_info.position
 
-                    point_stamped.header.frame_id = "rgb_camera_link"
+                    # point_stamped.header.frame_id = "rgb_camera_link"
+                    point_stamped.header.frame_id = "rgb_camera_link_corrected"
                     
                     # Check if transform is available
                     if self.tf_buffer.can_transform(
                         target_frame, 
-                        msg.header.frame_id, 
+                        point_stamped.header.frame_id, 
                         msg.header.stamp,
                         timeout=rclpy.duration.Duration(seconds=tf_timeout)
                         # Time()
