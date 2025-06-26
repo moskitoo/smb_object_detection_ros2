@@ -631,10 +631,11 @@ class DetectionProcessorNode(Node):
         try:
             if hasattr(self, 'detections_data') and self.detections_data:
                 self.save_detections_csv()
-            if hasattr(self, 'refined_positions'):
+            if hasattr(self, 'refined_positions') and self.refined_positions:
                 self.save_refined_detections_csv()
-        except:
-            pass
+        except Exception as e:
+            # Use print instead of logger since node might be destroyed
+            print(f"Error saving CSV in destructor: {e}")
 
 
 def main(args=None):
@@ -658,12 +659,22 @@ def main(args=None):
             try:
                 node.save_detections_csv()
                 node.save_refined_detections_csv()
-            except:
-                pass
+            except Exception as save_e:
+                if node:
+                    node.get_logger().error(f"Failed to save CSV on error: {str(save_e)}")
     finally:
         if node:
-            node.destroy_node()
-        rclpy.shutdown()
+            try:
+                node.destroy_node()
+            except Exception as destroy_e:
+                print(f"Error destroying node: {destroy_e}")
+        
+        # Only shutdown if rclpy is still initialized
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception as shutdown_e:
+            print(f"Error during shutdown: {shutdown_e}")
 
 
 if __name__ == "__main__":
