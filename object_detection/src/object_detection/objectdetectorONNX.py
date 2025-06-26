@@ -158,7 +158,7 @@ class ObjectDetectorONNX:
         scale,
         pad_top,
         pad_left,
-        input_size=640,  # Changed from 1280 to 640 to match preprocessing
+        input_size=640,
         conf_threshold=0.5,
     ):
         try:
@@ -197,6 +197,13 @@ class ObjectDetectorONNX:
 
             # Get class indices
             class_indices = np.argmax(class_probs, axis=1)
+
+            # Filter by selected classes - NEW CODE
+            if self.classes:  # If specific classes are configured
+                class_filter = np.isin(class_indices, self.classes)
+                boxes = boxes[class_filter]
+                confidences = confidences[class_filter]
+                class_indices = class_indices[class_filter]
 
             # Convert center coordinates to corner coordinates
             cx = boxes[:, 0]
@@ -240,7 +247,7 @@ class ObjectDetectorONNX:
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            raise
+            raise    
 
     def detect(self, image):
         if self.architecture == "yolo":
