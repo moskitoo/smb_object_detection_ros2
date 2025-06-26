@@ -145,7 +145,7 @@ class ObjectDetectorONNX:
             value=(114, 114, 114),
         )
 
-        image_padded = image_padded.astype(np.float16) / 255.0
+        image_padded = image_padded.astype(np.float32) / 255.0
         image_padded = np.transpose(image_padded, (2, 0, 1))  # Change to (C, H, W)
         image_padded = np.expand_dims(image_padded, axis=0)  # Add batch dimension
         return image_padded, scale, top, left
@@ -158,7 +158,7 @@ class ObjectDetectorONNX:
         scale,
         pad_top,
         pad_left,
-        input_size=1280,
+        input_size=640,  # Changed from 1280 to 640 to match preprocessing
         conf_threshold=0.5,
     ):
         try:
@@ -168,12 +168,25 @@ class ObjectDetectorONNX:
 
             detection = detection[0]
 
-            if detection.shape[1] != 85:
-                raise ValueError("Detection tensor shape is incorrect.")
+            # YOLO11 outputs shape (84, 8400), we need to transpose to (8400, 84)
+            if detection.shape == (84, 8400):
+                detection = detection.T  # Transpose to (8400, 84)
+                print(f"Transposed detection shape: {detection.shape}")
 
-            boxes = detection[:, :4]  # Bounding boxes (cx, cy, w, h)
-            confidences = detection[:, 4]  # Confidence scores
-            class_probs = detection[:, 5:]  # Class probabilities
+            # YOLO11 format: [x, y, w, h, class1, class2, ..., class80] (84 columns total)
+            if detection.shape[1] == 84:
+                boxes = detection[:, :4]  # Bounding boxes (cx, cy, w, h)
+                class_probs = detection[:, 4:]  # Class probabilities (80 classes)
+                
+                # For YOLO11, confidence is the maximum class probability
+                confidences = np.max(class_probs, axis=1)
+            elif detection.shape[1] == 85:
+                # YOLOv5 format: [x, y, w, h, conf, class1, class2, ..., class80]
+                boxes = detection[:, :4]
+                confidences = detection[:, 4]
+                class_probs = detection[:, 5:]
+            else:
+                raise ValueError(f"Unexpected detection tensor shape: {detection.shape}. Expected 84 or 85 columns.")
 
             # Filter out low confidence detections
             indices = np.where(confidences > conf_threshold)
@@ -236,7 +249,13 @@ class ObjectDetectorONNX:
             outputs = self.session.run(None, {self.input_name: input_image})
 
             detection = self.postprocess(
-                outputs, original_width, original_height, scale, pad_top, pad_left
+                outputs, 
+                original_width, 
+                original_height, 
+                scale, 
+                pad_top, 
+                pad_left,
+                conf_threshold=self.confident  # Use the configured confidence threshold
             )
 
             if not self.multiple_instance:

@@ -64,7 +64,8 @@ def generate_launch_description():
             description="path to the yolo model directory",
         ),
         DeclareLaunchArgument(
-            "model", default_value="yolov5l6", description="yolo model name"
+            "model", default_value="yolo11l_640", description="yolo model name"
+            # "model", default_value="yolov5l6", description="yolo model name"
         ),
     ]
 
@@ -133,7 +134,7 @@ def generate_launch_description():
                     {"model": LaunchConfiguration("model")},
                     {"model_dir_path": LaunchConfiguration("model_dir_path")},
                     {"device": "0" if LaunchConfiguration("gpu") != "off" else "cpu"},
-                    {"confident": 0.0},
+                    {"confident": 0.15},
                     {"iou": 0.1},
                     # {"classes": LaunchConfiguration("object_detection_classes")},
                     {"multiple_instance": False},
