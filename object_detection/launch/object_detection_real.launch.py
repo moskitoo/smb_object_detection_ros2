@@ -74,8 +74,8 @@ def generate_launch_description():
             description="path to the yolo model directory",
         ),
         DeclareLaunchArgument(
-            "model", default_value="yolo11l_640", description="yolo model name"
-            # "model", default_value="yolov5l6", description="yolo model name"
+            # "model", default_value="yolo11l_640", description="yolo model name"
+            "model", default_value="yolov5l6", description="yolo model name"
         ),
     ]
 
