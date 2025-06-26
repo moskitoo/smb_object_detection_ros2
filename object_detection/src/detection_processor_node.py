@@ -40,12 +40,13 @@ class DetectionProcessorNode(Node):
             namespace="",
             parameters=[
                 ("detection_info_topic", "detection_info"),
-                ("target_classes", ["chair", "person"]),
+                ("target_classes", ["backpack", "umbrella", "stop sign", "clock", "bottle"]),
                 ("duplicate_distance_threshold", 0.0),
                 ("csv_output_dir", "detections"),  # Relative path from current working directory
                 ("marker_topic", "/detection_markers"),
                 ("marker_lifetime", 30.0),  # seconds
                 ("target_frame", "map"),  # Frame to transform to
+                # ("target_frame", "base_link"),
                 ("tf_timeout", 1.0),  # TF lookup timeout in seconds
             ],
         )
@@ -176,20 +177,20 @@ class DetectionProcessorNode(Node):
                 class_name = detection_info.class_id
                 
                 # Check if this class is in our target classes
-                if class_name not in target_classes:
-                    self.get_logger().debug(f"Skipping object of class '{class_name}' - not in target classes")
-                    continue
+                # if class_name not in target_classes:
+                #     self.get_logger().debug(f"Skipping object of class '{class_name}' - not in target classes")
+                #     continue
 
                 # Create marker in original camera frame first
-                original_marker = self.create_detection_marker(
-                    detection_info.position,
-                    "rgb_camera_link_corrected",
-                    class_name,
-                    msg.header.stamp,
-                    "_original"
-                )
-                if original_marker:
-                    marker_array.markers.append(original_marker)
+                # original_marker = self.create_detection_marker(
+                #     detection_info.position,
+                #     "rgb_camera_optical_link",
+                #     class_name,
+                #     msg.header.stamp,
+                #     "_original"
+                # )
+                # if original_marker:
+                #     marker_array.markers.append(original_marker)
 
                 # Extract position and transform to target frame
                 try:
