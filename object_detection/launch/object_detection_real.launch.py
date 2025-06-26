@@ -48,11 +48,21 @@ def generate_launch_description():
             default_value="/rslidar/points",
             description="Topic containing the point cloud from the lidar",
         ),
+        # DeclareLaunchArgument(
+        #     "object_detection_classes",
+        #     default_value="[0,24,25,28,32,39,41,45,46,47,56]",
+        #     description="List of the ids of classes for detection (COCO dataset)",
+        # ),
         DeclareLaunchArgument(
             "object_detection_classes",
-            default_value="[0,24,25,28,32,39,41,45,46,47,56]",
-            description="List of the ids of classes for detection (COCO dataset)",
-        ),
+            default_value="[11,24,25,39,74]",
+            description="List of the ids of classes for detection (COCO dataset): stop sign, backpack, umbrella, bottle, clock",
+        ),        
+        # backpack: 24
+        # umbrella: 25
+        # stop sign: 11
+        # clock: 74
+        # bottle: 39
         DeclareLaunchArgument(
             "model_dir_path",
             default_value=PathJoinSubstitution(
@@ -134,7 +144,7 @@ def generate_launch_description():
                     {"model": LaunchConfiguration("model")},
                     {"model_dir_path": LaunchConfiguration("model_dir_path")},
                     {"device": "0" if LaunchConfiguration("gpu") != "off" else "cpu"},
-                    {"confident": 0.15},
+                    {"confident": 0.05},
                     {"iou": 0.1},
                     # {"classes": LaunchConfiguration("object_detection_classes")},
                     {"multiple_instance": False},
