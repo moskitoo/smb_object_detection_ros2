@@ -484,27 +484,16 @@ class DetectionProcessorNode(Node):
                 for refined_data in refined_positions:
                     pos = refined_data['position']
                     entry = {
-                        'timestamp': datetime.now().isoformat(),
                         'class': class_name,
                         'x': float(pos[0]),
                         'y': float(pos[1]),
-                        'z': float(pos[2]),
-                        'cluster_size': refined_data['cluster_size'],
-                        'avg_confidence': refined_data['avg_confidence'],
-                        'max_confidence': refined_data['max_confidence'],
-                        'position_std_x': float(refined_data['position_std'][0]),
-                        'position_std_y': float(refined_data['position_std'][1]),
-                        'position_std_z': float(refined_data['position_std'][2]),
-                        'cluster_id': refined_data['cluster_id'],
-                        'frame_id': self.get_parameter("target_frame").value
+                        'z': float(pos[2])
                     }
                     refined_data_for_csv.append(entry)
             
             if refined_data_for_csv:
                 with open(self.refined_csv_filename, 'w', newline='') as csvfile:
-                    fieldnames = ['timestamp', 'class', 'x', 'y', 'z', 'cluster_size', 
-                                'avg_confidence', 'max_confidence', 'position_std_x', 
-                                'position_std_y', 'position_std_z', 'cluster_id', 'frame_id']
+                    fieldnames = ['class', 'x', 'y', 'z']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                     
                     writer.writeheader()
@@ -574,18 +563,11 @@ class DetectionProcessorNode(Node):
 
     def add_detection_to_csv_data(self, class_name, x, y, z, confidence, estimation_type, timestamp=None, frame_id="map"):
         """Add a detection to the CSV data list and immediately save it"""
-        if timestamp is None:
-            timestamp = datetime.now().isoformat()
-
         detection_entry = {
-            'timestamp': timestamp,
             'class': class_name,
             'x': x,
             'y': y,
-            'z': z,
-            'confidence': confidence,
-            'estimation_type': estimation_type,
-            'frame_id': frame_id
+            'z': z
         }
         self.detections_data.append(detection_entry)
 
@@ -613,7 +595,7 @@ class DetectionProcessorNode(Node):
         """Save all detections to CSV file"""
         try:
             with open(self.csv_filename, 'w', newline='') as csvfile:
-                fieldnames = ['timestamp', 'class', 'x', 'y', 'z', 'confidence', 'estimation_type', 'frame_id']
+                fieldnames = ['class', 'x', 'y', 'z']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 
                 writer.writeheader()
