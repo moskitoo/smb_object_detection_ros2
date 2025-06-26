@@ -153,7 +153,8 @@ class ObjectDetectionNode(Node):
                 "confident": self.get_parameter("confident").value,
                 "iou": self.get_parameter("iou").value,
                 "checkpoint": None,
-                "classes": self.get_parameter("classes").value,
+                # "classes": self.get_parameter("classes").value,
+                "classes": [11,24,25,39,74],
                 "multiple_instance": self.get_parameter("multiple_instance").value,
             },
         )
