@@ -153,6 +153,12 @@ def generate_launch_description():
                     {"ground_percentage": 25},
                     {"bb_contract_percentage": 10},
                 ],
+            ),
+            Node(
+                package="object_detection",
+                executable="detection_processor_node.py",
+                name="detection_processor",
+                output="screen",
             )
         ]
     )
