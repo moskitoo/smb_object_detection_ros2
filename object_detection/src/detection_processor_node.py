@@ -45,7 +45,7 @@ class DetectionProcessorNode(Node):
                 ("marker_topic", "/detection_markers"),
                 ("refined_marker_topic", "/refined_detection_markers"),
                 ("marker_lifetime", 30.0),
-                ("target_frame", "base_link"),
+                ("target_frame", "map"),
                 ("tf_timeout", 1.0),
                 # Updated clustering parameters for better object grouping
                 ("cluster_eps", 0.8),  # Increased from 0.5 - larger search radius
