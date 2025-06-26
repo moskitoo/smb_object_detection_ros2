@@ -145,7 +145,22 @@ class ObjectDetectorONNX:
             value=(114, 114, 114),
         )
 
-        image_padded = image_padded.astype(np.float32) / 255.0
+        print("=========")
+        print("MODEL: ", self.model)
+        print("=========")
+
+        # image_padded = image_padded.astype(np.float32) / 255.0
+                # image_padded = image_padded.astype(np.float32) / 255.0
+        # Conditionally set data type based on model
+        if self.model == "yolov5l6":
+            image_padded = image_padded.astype(np.float16) / 255.0
+        elif self.model == "yolo11l_640":
+            image_padded = image_padded.astype(np.float32) / 255.0
+        else:
+            # Default to float32 for other models
+            image_padded = image_padded.astype(np.float32) / 255.0
+
+
         image_padded = np.transpose(image_padded, (2, 0, 1))  # Change to (C, H, W)
         image_padded = np.expand_dims(image_padded, axis=0)  # Add batch dimension
         return image_padded, scale, top, left
